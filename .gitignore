@@ -4,3 +4,5 @@
 **.obj
 **/.ipynb_checkpoints/
 /surface-distance/
+/checkpoints/
+/lightning_logs/
