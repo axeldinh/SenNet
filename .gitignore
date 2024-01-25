@@ -1,0 +1,6 @@
+**/__pycache__/
+/blood-vessel-segmentation/
+**.mp4
+**.obj
+**/.ipynb_checkpoints/
+/surface-distance/
