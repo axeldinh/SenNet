@@ -47,7 +47,8 @@ class SingleKidneyDataset(Dataset):
         self.files.sort(key=lambda x: int(x.split(".")[0]))
 
     def __len__(self):
-        return len(self.files) - self.volume_depth + 1
+        return np.ceil(len(self.files) / self.volume_depth).astype(int)
+        # return len(self.files) - self.volume_depth + 1
 
     def __getitem__(self, idx):
         img, mask = self.get_images_masks(idx)
@@ -82,6 +83,9 @@ class SingleKidneyDataset(Dataset):
         return data
 
     def get_images_masks(self, idx):
+        idx = idx * self.volume_depth
+        if idx + self.volume_depth > len(self.files):
+            idx = len(self.files) - self.volume_depth
         for i in range(self.volume_depth):
             img_path = os.path.join(self.imgs_path, self.files[idx + i])
             mask_path = os.path.join(self.masks_path, self.files[idx + i])
