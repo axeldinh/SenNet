@@ -1,3 +1,6 @@
+**/.vscode/
+/results/
+submission.csv
 **/__pycache__/
 /blood-vessel-segmentation/
 **.mp4
