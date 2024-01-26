@@ -36,6 +36,7 @@ class SingleKidneyDataset(Dataset):
             "2.5d",
             "3d",
         ], f"dimension should be one of {['2d', '2.5d', '3d']}"
+
         self.imgs_path = imgs_path
         self.masks_path = masks_path
         self.resolution = resolution  # Distance between two pixels in micrometers
@@ -43,34 +44,31 @@ class SingleKidneyDataset(Dataset):
         self.dimension = dimension
         self.volume_depth = volume_depth  # How many images are used to create a volume
         self.transform = transform
-        self.files = os.listdir(self.masks_path)
+        if self.masks_path is None:
+            self.files = os.listdir(self.imgs_path)
+        else:
+            self.files = os.listdir(self.masks_path)
         self.files.sort(key=lambda x: int(x.split(".")[0]))
 
     def __len__(self):
         return np.ceil(len(self.files) / self.volume_depth).astype(int)
-        # return len(self.files) - self.volume_depth + 1
 
     def __getitem__(self, idx):
-        img, mask = self.get_images_masks(idx)
+        img, mask, img_paths, mask_paths = self.get_images_masks(idx)
         original_shape = img.shape[-2:]
         if self.transform is not None:
             with tv_tensors.set_return_type("TVTensor"):
                 img = Image(img.unsqueeze(1))
-                mask = Mask(mask)
-                img, mask = self.transform(img, mask)
+                if mask is not None:
+                    mask = Mask(mask)
+                    img, mask = self.transform(img, mask)
+                else:
+                    img = self.transform(img)
                 img = img.squeeze(1)
-        if self.dimension == "2d":
+        if self.dimension == "2d" and mask is not None:
             mask = mask.squeeze(0)
         if self.dimension == "3d":
             img = img.unsqueeze(0)
-        img_paths = [
-            os.path.join(self.imgs_path, self.files[idx + i])
-            for i in range(self.volume_depth)
-        ]
-        mask_paths = [
-            os.path.join(self.masks_path, self.files[idx + i])
-            for i in range(self.volume_depth)
-        ]
         data = {
             "img": img,
             "mask": mask,
@@ -83,22 +81,38 @@ class SingleKidneyDataset(Dataset):
         return data
 
     def get_images_masks(self, idx):
+        imgs, masks = [], []
+        img_paths, mask_paths = [], []
         idx = idx * self.volume_depth
         if idx + self.volume_depth > len(self.files):
-            idx = len(self.files) - self.volume_depth
+            idx = max(0, len(self.files) - self.volume_depth)
         for i in range(self.volume_depth):
-            img_path = os.path.join(self.imgs_path, self.files[idx + i])
-            mask_path = os.path.join(self.masks_path, self.files[idx + i])
-            img = np.float32(open_image(img_path)) / np.iinfo(np.uint16).max  # type: ignore
-            mask = np.array(open_image(mask_path))
-            if i == 0:
-                imgs = np.zeros((self.volume_depth,) + img.shape, dtype=np.float32)
-                masks = np.zeros((self.volume_depth,) + mask.shape, dtype=np.uint8)
-            imgs[i] = img
-            masks[i] = mask
+            if idx + i >= len(self.files):
+                img_path = None
+                img_paths.append(img_path)
+                img = np.zeros_like(imgs[-1])
+            else:
+                img_path = os.path.join(self.imgs_path, self.files[idx + i])
+                img_paths.append(img_path)
+                img = np.float32(open_image(img_path)) / np.iinfo(np.uint16).max  # type: ignore
+                if i == 0:
+                    imgs = np.zeros((self.volume_depth,) + img.shape, dtype=np.float32)
+                imgs[i] = img
+                if self.masks_path is not None:
+                    mask_path = os.path.join(self.masks_path, self.files[idx + i])
+                    mask_paths.append(mask_path)
+                    mask = np.array(open_image(mask_path))
+                    if i == 0:
+                        masks = np.zeros(
+                            (self.volume_depth,) + mask.shape, dtype=np.uint8
+                        )
+                    masks[i] = mask
         imgs = torch.from_numpy(imgs)
-        masks = torch.from_numpy(masks) / 255
-        return imgs, masks
+        if self.masks_path is not None:
+            masks = torch.from_numpy(masks) / 255
+        else:
+            masks = None
+        return imgs, masks, img_paths, mask_paths
 
 
 class MultiKidneyDataset(Dataset):
