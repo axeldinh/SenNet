@@ -80,7 +80,7 @@ def predict(
 
     for i in range(len(dataset)):
         data = dataset[i]
-        img = data["img"]
+        img = data["img"].to(model.device)
         shape = data["orignal_shape"]
         y = model(img.unsqueeze(0))
         y = y.squeeze(0).cpu().detach()
