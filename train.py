@@ -14,21 +14,37 @@ from utils.focal_loss import FocalLoss
 from models import UNet
 from dataset import get_dataloaders
 
+import warnings
+
+warnings.filterwarnings("ignore", message=".*is an instance of `nn.Module`.*")
+
 
 def train(
     pathdata,
     batch_size=1,
     epochs=1,
-    img_size=64,
-    volume_depth=8,
-    min_area=50,
+    img_size=512,
+    volume_depth=1,
+    min_area=0,
     unet_depth=2,
     init_feature=16,
-    dimension="2.5d",
+    dimension="2d",
     val_patient=["patient_3"],
     debug=False,
+    seed=42,
 ):
+    pl.seed_everything(seed)
     data_path = pathdata
+
+    if debug:
+        batch_size = 8
+        epochs = 2
+        val_patient = ["patient_3"]
+        volume_depth = 8 if dimension in ["2.5d", "3d"] else 1
+        img_size = 64
+        min_area = 0
+        unet_depth = 2
+        init_feature = 16
 
     transform = v2.Compose(
         [
@@ -88,12 +104,15 @@ def train(
         scheduler,
         batch_size=batch_size,
         transform=transform,
+        volume_depth=volume_depth,
+        dimension=dimension,
     )
 
     checkpoint_callback = ModelCheckpoint(
         monitor="val/SurfaceDice",
         dirpath="checkpoints",
-        filename="model-{epoch:02d}-{val/SurfaceDice:.2f}",
+        auto_insert_metric_name=False,
+        filename="model-best",
         save_top_k=1,
         mode="max",
     )
@@ -116,10 +135,10 @@ def train(
             break
         profiler = AdvancedProfiler(filename="profiler.txt")
         trainer = Trainer(
-            max_epochs=1,
+            max_epochs=epochs,
             callbacks=[checkpoint_callback],
-            limit_train_batches=0.002,
-            limit_val_batches=0.01,
+            limit_train_batches=0.02,
+            limit_val_batches=0.04,
             log_every_n_steps=1,
             profiler=profiler,
         )
@@ -150,9 +169,4 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epochs", type=int, default=1, help="Number of epochs")
     args = parser.parse_args()
 
-    pl.seed_everything(args.seed)
-
-    args = vars(args)
-    del args["seed"]
-
-    train(**args)
+    train(**vars(args))
