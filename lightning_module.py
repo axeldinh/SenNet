@@ -1,4 +1,5 @@
 import torch
+from torchvision.transforms.v2 import Compose, Resize
 import pytorch_lightning as pl
 from torchmetrics import MetricCollection, Dice, Accuracy, F1Score, Precision, Recall
 from utils.surface_dice_coefficient import SurfaceDice
@@ -6,7 +7,15 @@ from utils.surface_dice_coefficient import SurfaceDice
 
 class LitModel(pl.LightningModule):
     def __init__(
-        self, model, criterion, optimizer, scheduler, batch_size=1, transform=None
+        self,
+        model,
+        criterion,
+        optimizer,
+        scheduler,
+        batch_size=1,
+        transform=None,
+        volume_depth=1,
+        dimension="2d",
     ):
         super().__init__()
         self.model = model
@@ -23,6 +32,23 @@ class LitModel(pl.LightningModule):
         )
         self.batch_size = batch_size
         self.transform = transform
+        self.volume_depth = volume_depth
+        self.dimension = dimension
+        self.predict_transform = None
+        if transform is not None:
+            self.img_size = [
+                x.size
+                for x in transform.transforms
+                if "Resize" in str(x.__class__.__name__)
+            ][0]
+            self.predict_transform = Compose(
+                [
+                    x
+                    for x in transform.transforms
+                    if "Normalize" in str(x.__class__.__name__)
+                ]
+                + [Resize(self.img_size, antialias=True)]
+            )
         self.save_hyperparameters()
 
     def forward(self, x):
