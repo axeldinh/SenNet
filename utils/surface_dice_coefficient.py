@@ -2,17 +2,17 @@ from surface_distance import (
     compute_surface_distances,
     compute_surface_dice_at_tolerance,
 )
+import numpy as np
 import torch
 from torchmetrics import Metric
 
 
 class SurfaceDice(Metric):
-    def __init__(self, tolerance=0, dist_sync_on_step=False):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
-        self.dice = torch.tensor(0.0)
-        self.numel = 0
+    def __init__(self, tolerance=0, **kwargs):
+        super().__init__(**kwargs)
+        self.add_state("dice", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
         self.tolerance = tolerance
-        self.add_state("surface_dice", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, preds: torch.Tensor, targets: torch.Tensor):
         assert (
@@ -27,9 +27,12 @@ class SurfaceDice(Metric):
             pred = pred.cpu().numpy().astype(bool)
             target = target.cpu().numpy().astype(bool)
             surface_distances = compute_surface_distances(pred, target, (1, 1, 1))
-            surface_dice_at_tolerance += compute_surface_dice_at_tolerance(
+            curr_surface_dice = compute_surface_dice_at_tolerance(
                 surface_distances, self.tolerance
             )
+            if np.isnan(curr_surface_dice):
+                curr_surface_dice = 0
+            surface_dice_at_tolerance += curr_surface_dice
         self.dice += surface_dice_at_tolerance / preds.shape[0]
         self.numel += 1
 
