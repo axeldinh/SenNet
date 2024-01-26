@@ -178,6 +178,19 @@ datasets_configs = {
 }
 
 
+def collate_fn(batch):
+    # Lists of strings are not supported by default_collate
+    img_paths = [b["img_paths"] for b in batch]
+    mask_paths = [b["mask_paths"] for b in batch]
+    for b in batch:
+        del b["img_paths"]
+        del b["mask_paths"]
+    batch = torch.utils.data._utils.collate.default_collate(batch)
+    batch["img_paths"] = img_paths
+    batch["mask_paths"] = mask_paths
+    return batch
+
+
 def get_dataloaders(
     data_path,
     val_patients,
@@ -214,6 +227,7 @@ def get_dataloaders(
         num_workers=num_workers,
         shuffle=True,
         pin_memory=True,
+        collate_fn=collate_fn,
     )
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
@@ -221,6 +235,7 @@ def get_dataloaders(
         num_workers=num_workers,
         shuffle=False,
         pin_memory=True,
+        collate_fn=collate_fn,
     )
 
     return train_dataloader, val_dataloader
