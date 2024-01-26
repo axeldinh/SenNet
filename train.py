@@ -150,7 +150,7 @@ def train(
             callbacks=[checkpoint_callback],
         )
 
-    # trainer.fit(lit_model, train_loader, val_loader)
+    trainer.fit(lit_model, train_loader, val_loader)
 
     model = LitModel.load_from_checkpoint(checkpoint_path="checkpoints/model-best.ckpt")
 
