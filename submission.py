@@ -54,29 +54,18 @@ def save_predictions(img_path, pred, path, save_overlay=False):
 
 
 def predict(
-    model_path,
-    imgs_folder,
+    model,
+    dataset,
     save_path="predictions",
     save_masks=False,
     save_overlay=False,
     return_submission=True,
 ):
     os.makedirs(save_path, exist_ok=True)
-    model = LitModel.load_from_checkpoint(model_path)
     model.eval()
 
     slices = []
     rles = []
-
-    dataset = SingleKidneyDataset(
-        imgs_folder,
-        None,
-        resolution=0,
-        volume_depth=model.volume_depth,
-        ratio_segmented=0,
-        dimension=model.dimension,
-        transform=model.predict_transform,
-    )
 
     for i in range(len(dataset)):
         data = dataset[i]
@@ -92,6 +81,7 @@ def predict(
             img_path = data["img_paths"][i]
             if img_path is None:
                 continue
+            dataset_name = os.path.basename(os.path.dirname(os.path.dirname(img_path)))
             slice_ = os.path.basename(img_path).split(".")[0]
             rle = rle_encode((y[i] > 0.5).astype(np.uint8))
             rle = "1 0" if rle == "" else rle
@@ -99,7 +89,7 @@ def predict(
             rles.append(rle)
             if not save_masks:
                 continue
-            save_path_tmp = os.path.join(save_path, slice_ + ".png")
+            save_path_tmp = os.path.join(save_path, dataset_name, slice_ + ".png")
             save_predictions(
                 img_path,
                 y[i],
@@ -111,18 +101,45 @@ def predict(
         return submission_df
 
 
+def predict_from_paths(
+    model_path,
+    imgs_folder,
+    save_path="predictions",
+    save_masks=False,
+    save_overlay=False,
+    return_submission=True,
+):
+    model = LitModel.load_from_checkpoint(model_path)
+    dataset = SingleKidneyDataset(
+        imgs_folder,
+        None,
+        resolution=0,
+        volume_depth=model.volume_depth,
+        ratio_segmented=0,
+        dimension=model.dimension,
+        transform=model.predict_transform,
+    )
+    return predict(
+        model,
+        dataset,
+        save_path=save_path,
+        save_masks=save_masks,
+        save_overlay=save_overlay,
+        return_submission=return_submission,
+    )
+
+
 def make_submission(
     test_path, model_path, submission_path, results_path="./results/", save_results=True
 ):
     dfs = []
     for dataset_name in os.listdir(test_path):
         imgs_folder = os.path.join(test_path, dataset_name, "images")
-        save_path = os.path.join(results_path, dataset_name)
         dfs.append(
-            predict(
+            predict_from_paths(
                 model_path,
                 imgs_folder,
-                save_path=save_path,
+                save_path=results_path,
                 save_masks=save_results,
                 save_overlay=save_results,
                 return_submission=True,

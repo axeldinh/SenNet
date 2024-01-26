@@ -13,6 +13,7 @@ from utils.transforms import RemoveSmallVessel
 from utils.focal_loss import FocalLoss
 from models import UNet
 from dataset import get_dataloaders
+from submission import predict
 
 import warnings
 
@@ -22,12 +23,12 @@ warnings.filterwarnings("ignore", message=".*is an instance of `nn.Module`.*")
 def train(
     pathdata,
     batch_size=1,
-    epochs=1,
+    epochs=10,
     img_size=512,
     volume_depth=1,
     min_area=0,
-    unet_depth=2,
-    init_feature=16,
+    unet_depth=3,
+    init_feature=164,
     dimension="2d",
     val_patient=["patient_3"],
     debug=False,
@@ -149,7 +150,18 @@ def train(
             callbacks=[checkpoint_callback],
         )
 
-    trainer.fit(lit_model, train_loader, val_loader)
+    # trainer.fit(lit_model, train_loader, val_loader)
+
+    model = LitModel.load_from_checkpoint(checkpoint_path="checkpoints/model-best.ckpt")
+
+    predict(
+        model,
+        val_loader.dataset,
+        save_path="-".join(val_patient),
+        save_masks=True,
+        save_overlay=True,
+        return_submission=False,
+    )
 
 
 if __name__ == "__main__":
