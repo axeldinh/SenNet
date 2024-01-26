@@ -200,14 +200,3 @@ class UNet(nn.Module):
                 x = self.decoder[i](x, skips[-i - 1])
         x = self.out(x)
         return x
-
-
-if __name__ == "__main__":
-    x = torch.rand(2, 1, 128, 128)
-    model = UNet(1, 1, dimension=2)
-    y = model(x)
-    print(y.shape)
-    x = torch.rand(2, 1, 8, 128, 128)
-    model = UNet(1, 1, dimension=3)
-    y = model(x)
-    print(y.shape)
